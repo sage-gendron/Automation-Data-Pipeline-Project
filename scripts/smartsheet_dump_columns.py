@@ -1,4 +1,4 @@
-# dump_smartsheet_column_ids.py
+# smartsheet_dump_columns.py
 import json
 import os
 import smartsheet

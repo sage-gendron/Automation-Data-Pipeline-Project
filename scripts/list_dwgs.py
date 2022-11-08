@@ -38,7 +38,7 @@ def list_files():
             continue
         if 'engineer-specific' in path.lower():
             continue
-        # if folder not skipped...
+
         for file in files:
             # only grab files with .pdf filetypes
             if file.endswith('.pdf'):

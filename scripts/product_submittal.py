@@ -1,7 +1,7 @@
 # product_submittal.py
 import xlwings as xw
 import pandas as pd
-from DWG import DWG
+from scripts.DWG import DWG
 from rename import rename
 from pdfrw import PdfReader, PdfWriter, PdfDict, PdfObject
 from datetime import date
