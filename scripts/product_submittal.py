@@ -8,10 +8,8 @@ from datetime import date
 import os
 """
 author: Sage Gendron
-Master file to concatenate submittal drawings and spec sheets based on
-unique drawing codes. Takes user input to index available drawings, asks
-submittal refining questions and returns a full submittal file in a base
-directory.
+Master file to concatenate submittal drawings and spec sheets based on unique drawing codes. Takes user input to index 
+available drawings, asks submittal refining questions and returns a full submittal file in a base directory.
 """
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 ordered_alphabet: list[str] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',

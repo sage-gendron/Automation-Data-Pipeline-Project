@@ -1,5 +1,9 @@
 # DWG.py
 import re
+"""
+author: Sage Gendron
+
+"""
 
 
 class DWG:

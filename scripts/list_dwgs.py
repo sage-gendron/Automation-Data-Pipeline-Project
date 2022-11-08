@@ -10,10 +10,13 @@ estimating.
 """
 
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
+# area to copy from list_dwgs to quote generation template file
 copy_area = 'B1:ZZ50'
-folder_loc = r'C:\Estimating\CAD Drawings'
+
+# relevant location variables
+dwg_folder_loc = r'C:\Estimating\CAD Drawings'
 list_dwgs_loc = r'C:\Estimating\Data\list_dwgs.xlsx'
-tag_temp_loc = r'C:\Estimating\Customer\JOB_WIP 20220406.xlsm'
+project_template_loc = r'C:\Estimating\Customer\Project Template.xlsm'
 
 
 def list_files():
@@ -30,7 +33,7 @@ def list_files():
     path: str
     subdir: list[str]
     files: list[str]
-    for path, subdir, files in os.walk(folder_loc):
+    for path, subdir, files in os.walk(dwg_folder_loc):
         # skip folders as follows
         if '_archive' in path.lower():
             continue
@@ -48,12 +51,12 @@ def list_files():
     return dwg_list
 
 
-def kit_type_by_column(lst):
+def kit_type_by_column(dwg_list):
     """
     Transforms the drawings in list of lists format to dictionary format, sends it to a DataFrame, sends to an Excel
     file with columns as folder names, copies to project template file, saves, and closes all files.
 
-    :param list lst:
+    :param list dwg_list: data structure containing dwg files, pdf files, and the paths to get to them
     :return: None
     """
     columns: list[str] = []
@@ -61,7 +64,7 @@ def kit_type_by_column(lst):
 
     # transform the list of lists into a dictionary, so it can be ordered and transposed into Excel
     row: list[str]
-    for row in lst:
+    for row in dwg_list:
         path: list[str] = row[0].split('\\')
         if path[-1] not in some_dict.keys():
             columns.append(path[-1])
@@ -72,17 +75,17 @@ def kit_type_by_column(lst):
     # create a dataframe and transpose so that the folders are headers and drawings below respective folders
     df_raw: pd.DataFrame = pd.DataFrame.from_dict(some_dict, orient='index').transpose()
 
-    # send the dataframe to excel as the list_dwgs.xlsx file
+    # send the dataframe to excel as list_dwgs.xlsx
     df_raw.to_excel(list_dwgs_loc, sheet_name='list_dwgs', index=False, columns=columns)
 
-    # copy list_dwgs excel file to schedule data sheets
+    # instantiate Book objects for new list_dwgs file and project template
     wb_list_dwgs: xw.Book = xw.Book(list_dwgs_loc)
-    wb_template_combo: xw.Book = xw.Book(tag_temp_loc)
+    wb_proj_template: xw.Book = xw.Book(project_template_loc)
 
-    # copy list_dwgs sheet to COMBO doc, save, and exit the file
-    wb_list_dwgs.sheets['list_dwgs'].range(copy_area).copy(wb_template_combo.sheets['list_dwgs'].range(copy_area))
-    wb_template_combo.save()
-    wb_template_combo.app.quit()
+    # copy list_dwgs sheet to automated project file, save, and exit the file
+    wb_list_dwgs.sheets['list_dwgs'].range(copy_area).copy(wb_proj_template.sheets['list_dwgs'].range(copy_area))
+    wb_proj_template.save()
+    wb_proj_template.app.quit()
 
 
 if __name__ == '__main__':
