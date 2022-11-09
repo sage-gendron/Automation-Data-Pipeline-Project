@@ -1,5 +1,6 @@
 openpyxl==3.0.10
 pandas==1.5.0
 pdfrw==0.4
+pypdf2==2.11.1
 smartsheet-python-sdk==2.177.1
 xlwings==0.28.5

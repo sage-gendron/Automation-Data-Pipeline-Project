@@ -7,13 +7,13 @@ author: Sage Gendron
 
 
 class DWG:
-    def __init__(self, name, pkg, ctrl_model, ctrl_size, act_signal, compact=False, sweat=False, large=False, ss=False,
+    def __init__(self, name, pkg, ctrl_model, ctrl_size, ctrl_signal, compact=False, sweat=False, large=False, ss=False,
                  press=False, stacked=False, isolation=False):
         self.name: str = name
         self.pkg: str = pkg
         self.ctrl_model: str = ctrl_model
         self.ctrl_size: str = ctrl_size
-        self.act_signal: str = act_signal
+        self.ctrl_signal: str = ctrl_signal
         self.compact: bool = compact
         self.sweat: bool = sweat
         self.large: bool = large

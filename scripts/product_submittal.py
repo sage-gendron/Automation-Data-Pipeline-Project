@@ -202,7 +202,7 @@ def generate_submittal():
 
         # if dwg object flagged to include controls
         if type(dwg.ctrl_model) not in (None, float):
-            temp_controls = controls(parts[1], dwg.ctrl_model, dwg.ctrl_size, dwg.act_signal)
+            temp_controls = controls(parts[1], dwg.ctrl_model, dwg.ctrl_size, dwg.ctrl_signal)
 
             # de-duplicate control valve spec pages
             i: int

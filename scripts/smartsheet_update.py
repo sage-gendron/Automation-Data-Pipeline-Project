@@ -1,57 +1,46 @@
 # smartsheet_update.py
 import datetime
-import json
-import os
 import smartsheet
 import xlwings as xw
+from rename import rename
 """
 author: Sage Gendron
 
 """
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
-# Smartsheet API keys by user
+# smartsheet API keys by user
 sg_api_key: str = '###'
 user2_api_key: str = '###'
 user3_api_key: str = '###'
 user4_api_key: str = '###'
 
-# Unique ID for estimating Smartsheet sheet
+# unique ID for estimating Smartsheet sheet
 sheet_id: str = '@@@'
 
-# create important, unique column ID dictionary for reference below
+# create unique column ID dictionary for reference below
 column_ids: dict[str, int] = {
-    'Quote Status': 111000, 'Quoted By': 222000, 'Institution': 333000,
-    'Buy Sell Rep Name': 444000, 'Opportunity': 555000, 'Multiplier': 666000,
-    'Deal Total': 777000, 'Quote Request Contact': 888000, 'Regional': 999000,
-    'Bid Date': 101010, 'Date of Quote': 111111, 'Closed Date': 121212,
-    'Deal Status': 131313, 'Loss Reason': 141414, 'Notes': 151515,
-    'Industry': 161616, 'Balance Valve Type': 171717, 'SS': 181818,
-    'Equipment Type': 191919, 'Mechanical Engineer': 202020, 'Address': 212121,
-    'City': 222222, 'State': 232323, 'Zip': 242424, 'Contractor': 252525,
-    'SO #': 262626, 'Phase': 272727
+    'Status': 111000, 'Estimator': 222000, 'Company': 444000, 'Opportunity': 555000, 'Customer Pricing': 666000,
+    'Quote Value': 777000, 'Quote Date': 101010, 'Date Won': 121212, 'Deal Status': 131313, 'Industry': 161616,
+    'Engineered Component': 171717, 'Special Case 1': 181818, 'Equipment Type': 191919, 'Engineer': 202020,
+    'Street Address': 212121, 'City': 222222, 'State': 232323, 'Zip': 242424, 'SO #': 262626, 'Phase': 272727
 }
 
-# Project Excel file cell variables
-# for iterated updating
+# schedule Excel file cell variables for update_smartsheet()
 simple_cols: dict[str, str] = {
-    'Industry': 'D3', 'Balance Valve Type': 'D4', 'Equipment Type': 'D6', 'Mechanical Engineer': 'C22',
-    'Contractor': 'C21', 'Address': 'D7', 'City': 'D8', 'State': 'D9', 'Zip': 'D10', 'Phase': 'G24'
+    'Industry': 'D3', 'Engineered Component': 'D4', 'Special Case 1': 'D5', 'Equipment Type': 'D6', 'Engineer': 'C22',
+    'Street Address': 'D7', 'City': 'D8', 'State': 'D9', 'Zip': 'D10', 'Phase': 'G24', 'Customer Pricing': 'A3',
+    'Status': None
 }
 # for logical updating
-_sch_job_name_cell: str = 'C19'  # not currently implemented
-_sch_rep_cell: str = 'C23'  # not currently implemented
 sch_owner_cell: str = 'G23'
-sch_contact_cell: str = 'C24'
 sch_row_id_cell: str = 'D2'
-sch_ss_cell: str = 'D5'
-q_x_cell: str = 'A3'
-q_total_cell: str = 'AA4'
+qte_total_cell: str = 'AA4'
 so_cell: str = 'G22'
 
 
 def get_ss_client(wb):
     """
-    Uses filepath from xw.Book to identify author and create a Smartsheet client using their API key.
+    Uses filepath from the passed workbook to identify author and create a Smartsheet client using their API key.
 
     :param xw.Book wb: Excel workbook to grab the estimator's initials from
     :returns ss_c: A smartsheet client object created with the estimator's API key
@@ -61,9 +50,9 @@ def get_ss_client(wb):
     jn = wb.fullname.split('\\')[-1].split('_')
     # look for initials for quoting personnel to select the correct API key with which to instantiate the client
     ss_c: smartsheet.Smartsheet
-    if 'USER3' in jn:
+    if 'USER2' in jn:
         ss_c = smartsheet.Smartsheet(user3_api_key)
-    elif 'USER2' in jn:
+    elif 'USER3' in jn:
         ss_c = smartsheet.Smartsheet(user2_api_key)
     elif 'USER4' in jn:
         ss_c = smartsheet.Smartsheet(user4_api_key)
@@ -86,8 +75,8 @@ def create_cell(ss_c, col_name, wb=None, sheet=None, xl_cell=None, is_float=Fals
     :param str xl_cell: Cell reference from which to extract data within the sheet, book above
     :param bool is_float: indicates if value should be read as a float
     :param bool is_bool: indicates if values should be read as a bool
-    :param cell_val: cell value, if known, so it can be attributed to the new cell object
-    :returns new_cell: a new cell object with value as specified
+    :param cell_val: cell value, if known/is a stock value, so it can be attributed to the new cell object
+    :returns new_cell: a new Cell object with value as specified
     :rtype: smartsheet.Smartsheet.models.Cell
     """
     # create the new Cell object
@@ -117,38 +106,15 @@ def update_ss():
 
     :return: None
     """
+    # instantiate Book instance to interact with Excel
     wb: xw.Book = xw.Book.caller()
 
-    quote_name = wb.fullname.split('\\')
-    quote_name[-1] = f"{quote_name[-1][:-4]}xlsm"
-    quote_fname = quote_name[-1].split('_')
-    quote_sales_fname = quote_name[-1].split('_')
-    quote_fname[-2] = 'QUOTE'
-    quote_sales_fname[-2] = 'QUOTE SALES'
-    quote_fname = '_'.join(quote_fname)
-    quote_sales_fname = '_'.join(quote_sales_fname)
-    quote_sales_fname = f"{quote_sales_fname[:-1]}x"
-    quote_name = quote_name[:-1]
-    quote_sales = quote_name
-    fpath = '\\'.join(quote_name)
-    quote_name = '\\'.join(quote_name) + f"\\{quote_fname}"
-    quote_sales = '\\'.join(quote_sales) + f"\\{quote_sales_fname}"
+    fpath = '\\'.join(wb.fullname.split('\\')[:-1])
 
-    submittal_name = wb.fullname.split('\\')
-    submittal_name[-1] = f"{submittal_name[-1][:-4]}pdf"
-    submittal_fname = submittal_name[-1].split('_')
-    submittal_fname[-2] = 'SUBMITTAL'
-    submittal_fname = '_'.join(submittal_fname)
-    submittal_name = submittal_name[:-1]
-    submittal_name = '\\'.join(submittal_name) + '\\' + submittal_fname
-
-    schedule_name = wb.fullname.split('\\')
-    schedule_name[-1] = f"{schedule_name[-1][:-1]}x"
-    schedule_fname = schedule_name[-1].split('_')
-    schedule_fname[-2] = 'SCHEDULE'
-    schedule_fname = '_'.join(schedule_fname)
-    schedule_name = schedule_name[:-1]
-    schedule_name = '\\'.join(schedule_name) + '\\' + schedule_fname
+    quote_name = rename(wb, 'QUOTE', 'pdf')
+    opt_quote_name = rename(wb, 'EXCEL QUOTE', 'xlsx')
+    schedule_name = rename(wb, 'SCHEDULE', 'xlsx')
+    submittal_name = rename(wb, 'SUBMITTAL', 'pdf')
 
     # instantiate smartsheet client with Quotes smartsheet
     ss_c: smartsheet.Smartsheet = get_ss_client(wb)
@@ -162,145 +128,122 @@ def update_ss():
     fpath_comment: smartsheet.Smartsheet.models.Comment = ss_c.models.Comment({'text': fpath})
 
     # instantiate flags to skip update calls below
-    skip_contact: bool = False
-    skip_institution: bool = False
-    update_comment = None
+    update_fpath_comment = None
     update_quote_upload = None
     update_schedule_upload = None
     update_submittal_upload = None
-    update_quote_sales_upload = None
+    update_opt_quote_upload = None
 
-    # grab existing row, attachments, discussions to help decide what to update
-    current_row: smartsheet.Smartsheet.models.Row = ss_c.Sheets.get_row(sheet_id, job_row_id, include='columns')
+    # grab existing attachments, discussions to help decide what to update
     current_attachments = ss_c.Attachments.list_row_attachments(sheet_id, job_row_id)
     current_discussions = ss_c.Discussions.get_row_discussions(sheet_id, job_row_id, include_all=True)
-
-    # iterate through existing information in row and set IDs to update if required
-    cell: smartsheet.Smartsheet.models.Cell
-    for cell in current_row.cells:
-        if cell.column_id == column_ids['Quote Request Contact'] and cell.value not in ('', None):
-            skip_contact = True
-        if cell.column_id == column_ids['Institution'] and cell.value not in ('', None):
-            skip_institution = True
 
     discussion: smartsheet.Smartsheet.models.Discussion
     for discussion in current_discussions.data:
         for comment in discussion.comments:
-            if comment.text == fpath:  # this isn't getting triggered? might be str type issue
-                update_comment = comment.id
+            if comment.text == fpath:
+                update_fpath_comment = comment.id
 
     attachment: smartsheet.Smartsheet.models.Attachment
     for attachment in current_attachments.data:
-        if attachment.name == quote_fname[:-4] + 'pdf':
+        if attachment.name == quote_name.split('\\')[-1]:
             update_quote_upload = attachment.id
-        elif attachment.name == schedule_fname[:-1] + 'x':
+        elif attachment.name == schedule_name.split('\\')[-1]:
             update_schedule_upload = attachment.id
-        elif attachment.name == submittal_fname:
+        elif attachment.name == submittal_name.split('\\')[-1]:
             update_submittal_upload = attachment.id
-        elif attachment.name == quote_sales_fname:
-            update_quote_sales_upload = attachment.id
-
-    # create SS cell instance, assign quote status to Quote Done, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Quote Status', cell_val='Quote Done'))
-
-    # create SS cell instance, assign multiplier from quote, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Multiplier', xl_cell=q_x_cell, wb=wb, sheet='QUOTE', is_float=True))
+        elif attachment.name == opt_quote_name.split('\\')[-1]:
+            update_opt_quote_upload = attachment.id
 
     # create SS cell instance, assign deal total from quote, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Deal Total', xl_cell=q_total_cell, wb=wb, sheet='QUOTE', is_float=True))
-
-    # create SS cell instance, assign SS boolean value, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'SS', wb=wb, sheet='SCHEDULE', xl_cell=sch_ss_cell, is_bool=True))
-
-    if not skip_contact:
-        job_row.cells.append(create_cell(ss_c, 'Quote Request Contact', wb=wb, sheet='SCHEDULE',
-                                         xl_cell=sch_contact_cell))
-
-    if not skip_institution and type(cell_val := wb.sheets['SCHEDULE'].range(sch_owner_cell).value) is str:
-        job_row.cells.append(create_cell(ss_c, 'Institution', cell_val=cell_val))
+    job_row.cells.append(create_cell(ss_c, 'Quote Value', xl_cell=qte_total_cell, wb=wb, sheet='QUOTE', is_float=True))
 
     # create SS cell instance, assign quote date (always today), add cell to SS row object
     job_row.cells.append(create_cell(ss_c, 'Date of Quote', cell_val=datetime.date.today().strftime('%Y-%m-%d')))
 
-    # loop through simple cell updates that will always happen if information is provided
+    # loop through all columns to construct a cell to append to row if information is provided
     col: str
     xl_cell: str
     for col, xl_cell in simple_cols.items():
-        if type(cell_val := wb.sheets['SCHEDULE'].range(xl_cell).value) is str:
+        # create Cell instance, assign quote status to Completed, add cell to SS row object
+        if col == 'Status':
+            job_row.cells.append(create_cell(ss_c, col, cell_val='Completed'))
+        # create Cell instance, assign boolean value, add cell to SS row object
+        elif col == 'Special Case 1':
+            job_row.cells.append(create_cell(ss_c, 'Special Case 1', wb=wb, sheet='SCHEDULE', xl_cell=xl_cell,
+                                             is_bool=True))
+        # create Cell instance, assign customer pricing from quote, add cell to SS row object
+        elif col == 'Customer Pricing':
+            job_row.cells.append(
+                create_cell(ss_c, col, wb=wb, xl_cell=xl_cell, sheet='QUOTE', is_float=True))
+        elif type(cell_val := wb.sheets['SCHEDULE'].range(xl_cell).value) is str:
             job_row.cells.append(create_cell(ss_c, col, cell_val=cell_val))
 
     # push row update to SS server
     _updated_row = ss_c.Sheets.update_rows(sheet_id, [job_row])
 
-    # add filepath as comment
-    if update_comment is not None:
-        _updated_comment = ss_c.Discussions.update_comment(sheet_id, update_comment, fpath_comment)
+    # add/update filepath to the project folder as comment
+    if update_fpath_comment is not None:
+        _updated_comment = ss_c.Discussions.update_comment(sheet_id, update_fpath_comment, fpath_comment)
     else:
-        _updated_comment = ss_c.Discussions.create_discussion_on_row(sheet_id, job_row_id,
-                                                                     ss_c.models.Discussion({'comment': fpath_comment})
-                                                                     )
+        _updated_comment = ss_c.Discussions.create_discussion_on_row(
+            sheet_id, job_row_id, ss_c.models.Discussion({'comment': fpath_comment}))
 
     # initiate file attachment upload to row by filename/path
     if update_quote_upload is not None:
-        _upload_quote = ss_c.Attachments.attach_new_version(sheet_id, update_quote_upload,
-                                                            (f"{quote_fname[:-4]}pdf", open(f"{quote_name[:-4]}pdf",
-                                                                                            'rb'), 'application/pdf')
-                                                            )
+        _upload_quote = ss_c.Attachments.attach_new_version(sheet_id, update_quote_upload, (
+            quote_name.split('\\')[-1], open(quote_name, 'rb'), 'application/pdf'))
     else:
-        _upload_quote = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id, (f"{quote_fname[:-4]}pdf",
-                                                            open(f"{quote_name[:-4]}pdf", 'rb'), 'application/pdf')
-                                                            )
+        _upload_quote = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id, (quote_name.split('\\')[-1],
+                                                            open(quote_name, 'rb'), 'application/pdf'))
+
+    #
     try:
         if update_submittal_upload is not None:
-            _upload_submittal = ss_c.Attachments.attach_new_version(sheet_id, update_submittal_upload, (submittal_fname,
-                                                                    open(submittal_name, 'rb'), 'application/pdf')
-                                                                    )
+            _upload_submittal = ss_c.Attachments.attach_new_version(sheet_id, update_submittal_upload, (
+                submittal_name.split('\\')[-1], open(submittal_name, 'rb'), 'application/pdf'))
         else:
-            _upload_submittal = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id, (submittal_fname,
-                                                                    open(submittal_name, 'rb'), 'application/pdf')
-                                                                    )
+            _upload_submittal = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id, (
+                submittal_name.split('\\')[-1], open(submittal_name, 'rb'), 'application/pdf'))
     except FileNotFoundError:
         pass
+
+    #
     if update_schedule_upload is not None:
-        _upload_schedule = ss_c.Attachments.attach_new_version(sheet_id, update_schedule_upload,
-                                                               (f"{schedule_fname[:-1]}x", open(schedule_name, 'rb'),
-                                                                'application/vnd.openxmlformats-'
-                                                                'officedocument.spreadsheetml.sheet')
-                                                               )
+        _upload_schedule = ss_c.Attachments.attach_new_version(
+            sheet_id, update_schedule_upload, (schedule_name.split('\\')[-1], open(schedule_name, 'rb'),
+                                               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
     else:
-        _upload_schedule = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id,
-                                                               (f"{schedule_fname[:-1]}x", open(schedule_name, 'rb'),
-                                                                'application/vnd.openxmlformats-'
-                                                                'officedocument.spreadsheetml.sheet')
-                                                               )
-    if update_quote_sales_upload is not None:
+        _upload_schedule = ss_c.Attachments.attach_file_to_row(
+            sheet_id, job_row_id, (schedule_name.split('\\')[-1], open(schedule_name, 'rb'),
+                                   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
+
+    #
+    if update_opt_quote_upload is not None:
         try:
-            _upload_sales_quote = ss_c.Attachments.attach_new_version(sheet_id, update_quote_sales_upload,
-                                                                      (quote_sales_fname, open(quote_sales, 'rb'),
-                                                                       'application/vnd.openxmlformats-'
-                                                                       'officedocument.spreadsheetml.sheet')
-                                                                      )
+            _upload_opt_quote = ss_c.Attachments.attach_new_version(
+                sheet_id, update_opt_quote_upload, (opt_quote_name.split('\\')[-1], open(opt_quote_name, 'rb'),
+                                                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
         except FileNotFoundError:
             pass
 
     else:
         try:
-            _upload_sales_quote = ss_c.Attachments.attach_file_to_row(sheet_id, job_row_id, (quote_sales_fname,
-                                                                      open(quote_sales, 'rb'),
-                                                                      'application/vnd.openxmlformats-'
-                                                                      'officedocument.spreadsheetml.sheet')
-                                                                      )
+            _upload_opt_quote = ss_c.Attachments.attach_file_to_row(
+                sheet_id, job_row_id, (opt_quote_name.split('\\')[-1], open(opt_quote_name, 'rb'),
+                                       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
         except FileNotFoundError:
             pass
 
 
 def mark_as_won():
     """
-    Changes the deal status of the project file's row ID to 'Won', changes the closed date to today, and adds the SO#
-    to the SO# column (all in the Quotes Smartsheet).
+    Changes the deal status of the active quote's row ID to 'Won', changes the date won to today, and adds the SO#
+    to the SO# column.
 
     :return: None
     """
+    # instantiate Book instance to interact with Excel
     wb: xw.Book = xw.Book.caller()
     schedule = wb.sheets['SCHEDULE']
 
@@ -310,18 +253,18 @@ def mark_as_won():
     # grab SO# from cell in schedule
     so_no: str = schedule.range(so_cell).value
     if type(so_no) in (None, float):
-        raise Exception('SO number not entered. Please add and try again.')
+        raise Exception('Sales Order number not entered. Please add and try again.')
 
     # build SS row object using the job row ID entered into Excel file
     job_row_id: int = int(schedule.range(sch_row_id_cell).value)
     job_row: smartsheet.Smartsheet.models.Row = ss_c.models.Row()
     job_row.id = job_row_id
 
-    # create SS cell instance, assign deal status information, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Deal Status', cell_val='Won'))
+    # create SS cell instance, assign quote status information, add cell to SS row object
+    job_row.cells.append(create_cell(ss_c, 'Status', cell_val='Won'))
 
-    # create SS cell instance, assign closed date (always today), add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Closed Date', cell_val=datetime.date.today().strftime('%Y-%m-%d')))
+    # create SS cell instance, assign date won (always today), add cell to SS row object
+    job_row.cells.append(create_cell(ss_c, 'Date Won', cell_val=datetime.date.today().strftime('%Y-%m-%d')))
 
     # create SS cell instance, assign sales order # (NoneType if cell is blank), add cell to SS row object
     job_row.cells.append(create_cell(ss_c, 'SO #', cell_val=so_no))

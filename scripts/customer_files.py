@@ -13,6 +13,7 @@ customer/engineer consumption.
 # Template file locations
 quote_template: str = r'C:\Estimating\Customer\Quote Template.xlsx'
 schedule_template: str = r'C:\Estimating\Customer\Schedule Template.xlsx'
+
 # Production source directory
 prod_order_loc: str = r'C:\Production\2022\New Orders'
 
@@ -42,7 +43,7 @@ def copy_customer_quote_file(wb):
     Copies blank flat quote file to active/calling workbook directory with correct naming scheme.
 
     :param xlwings.Book wb: calling filepath/filename to be modified
-    :return: target (:py:class:'str') - filepath/filename of copied customer quote template
+    :return: target - filepath/filename of copied customer quote template
     :rtype: str
     """
     # generate new filepath + filename for the customer quote using the active workbook
@@ -80,7 +81,7 @@ def copy_customer_schedule_file(wb):
     This will purposefully throw an error if the file does not use the standardized naming scheme.
 
     :param xlwings.Book wb: as a parameter, calling workbook filepath
-    :return: target (:py:class:'str') - filepath of newly copied flat schedule file
+    :return: target - filepath of newly copied flat schedule file
     :rtype: str
     """
     # manipulate calling workbook filepath to identify new flat schedule filepath/name
@@ -137,7 +138,7 @@ def generate_customer_schedule():
 
 def csr_file_copy():
     """
-    Creates folder in to_orders location and copies the customer schedule, submittal, and packing list for warehouse
+    Creates folder in prod_orders location and copies the customer schedule, submittal, and packing list for warehouse
 
     :return: None - Saves files in the production folder denoted by the Sales Order number
     """
