@@ -19,23 +19,22 @@ sheet_id: str = '@@@'
 
 # create unique column ID dictionary for reference below
 column_ids: dict[str, int] = {
-    'Status': 111000, 'Estimator': 222000, 'Company': 444000, 'Opportunity': 555000, 'Customer Pricing': 666000,
-    'Quote Value': 777000, 'Quote Date': 101010, 'Date Won': 121212, 'Deal Status': 131313, 'Industry': 161616,
-    'Engineered Component': 171717, 'Special Case 1': 181818, 'Equipment Type': 191919, 'Engineer': 202020,
-    'Street Address': 212121, 'City': 222222, 'State': 232323, 'Zip': 242424, 'SO #': 262626, 'Phase': 272727
+    'Status': 111000, 'Customer Pricing': 666000, 'Quote Value': 777000, 'Quote Date': 101010, 'Date Won': 121212,
+    'Deal Status': 131313, 'Industry': 161616, 'Engineered Component': 171717, 'Special Case 1': 181818,
+    'Equipment Type': 191919, 'Engineer': 202020, 'Street Address': 212121, 'City': 222222, 'State': 232323,
+    'Zip': 242424, 'SO #': 262626, 'Phase': 272727
 }
 
+# general Excel cell locations
+sch_row_id_cell: str = 'D2'
+so_cell: str = 'G22'  # only used for mark_as_won()
+
 # schedule Excel file cell variables for update_smartsheet()
-simple_cols: dict[str, str] = {
+col_opts: dict[str, str] = {
     'Industry': 'D3', 'Engineered Component': 'D4', 'Special Case 1': 'D5', 'Equipment Type': 'D6', 'Engineer': 'C22',
     'Street Address': 'D7', 'City': 'D8', 'State': 'D9', 'Zip': 'D10', 'Phase': 'G24', 'Customer Pricing': 'A3',
-    'Status': None
+    'Quote Value': 'AA4', 'Date of Quote': None, 'Status': None
 }
-# for logical updating
-sch_owner_cell: str = 'G23'
-sch_row_id_cell: str = 'D2'
-qte_total_cell: str = 'AA4'
-so_cell: str = 'G22'
 
 
 def get_ss_client(wb):
@@ -43,7 +42,7 @@ def get_ss_client(wb):
     Uses filepath from the passed workbook to identify author and create a Smartsheet client using their API key.
 
     :param xw.Book wb: Excel workbook to grab the estimator's initials from
-    :returns ss_c: A smartsheet client object created with the estimator's API key
+    :return ss_c: A smartsheet client object created with the estimator's API key
     :rtype: smartsheet.Smartsheet
     """
     # find the file name by splitting the filepath of the workbook
@@ -94,6 +93,8 @@ def create_cell(ss_c, col_name, wb=None, sheet=None, xl_cell=None, is_float=Fals
     else:
         new_cell.value = wb.sheets[sheet.upper()].range(xl_cell).value
 
+    # set cell strictness to false; if left to default value (True), doesn't allow server to edit datatypes and can
+    # cause silent issues on row update
     new_cell.strict = False
 
     return new_cell
@@ -103,25 +104,25 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
     """
     www
 
-    :param ss_c:
-    :param row_id:
-    :param quote:
-    :param schedule:
-    :param submittal:
-    :param opt_quote:
-    :return:
+    :param smartsheet.Smartsheet ss_c: Smartsheet client object
+    :param int row_id: Smartsheet unique row identifying number
+    :param str quote: possible file path for generated Quote document (PDF)
+    :param str schedule: possible file path for generated Engineered Schedule document (Excel)
+    :param str submittal: possible file path for generated submittal document (PDF)
+    :param str opt_quote: possible file path for generated Quote document (Excel)
+    :return: _updated_attachments - list of Smartsheet server JSON response documents
     :rtype: list
     """
-    _updated_attachments = []
+    # grab existing attachments (if they exist) to help decide what to update
+    current_attachments = ss_c.Attachments.list_row_attachments(sheet_id, row_id)
+
+    #
     update_quote_upload = False
     update_schedule_upload = False
     update_submittal_upload = False
     update_opt_quote_upload = False
 
-    # grab existing attachments (if they exist) to help decide what to update
-    current_attachments = ss_c.Attachments.list_row_attachments(sheet_id, row_id)
-
-    # loop through row attachments to identify if updates are required based on file name
+    # loop through row attachments to identify if updates are required based on file name (as API directives differ)
     attachment: smartsheet.Smartsheet.models.Attachment
     for attachment in current_attachments.data:
         if attachment.name == quote.split('\\')[-1]:
@@ -132,6 +133,9 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
             update_submittal_upload = True
         elif attachment.name == opt_quote.split('\\')[-1]:
             update_opt_quote_upload = True
+
+    #
+    _updated_attachments = []
 
     # attaches a new version of the pdf quote if one was found, otherwise uploads a new file
     if update_quote_upload:
@@ -182,11 +186,13 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
 
 def upload_discussions(ss_c, row_id, fpath):
     """
+    www
 
-    :param ss_c:
-    :param row_id:
-    :param fpath:
-    :return:
+    :param smartsheet.Smartsheet ss_c: Smartsheet client object
+    :param int row_id: Smartsheet unique row identifying number
+    :param str fpath: location of the quote in the local drive
+    :return: Smartsheet server JSON response document
+    :rtype: dict
     """
     # build comment object with filepath for text
     new_comment: smartsheet.Smartsheet.models.Comment = ss_c.models.Comment({'text': fpath})
@@ -194,6 +200,7 @@ def upload_discussions(ss_c, row_id, fpath):
     # grab existing discussions (if they exist) to help decide what to update
     current_discussions = ss_c.Discussions.get_row_discussions(sheet_id, row_id, include_all=True)
 
+    # loop through discussions on row to identify if any comments already contain the current file path, if so, update
     discussion: smartsheet.Smartsheet.models.Discussion
     for discussion in current_discussions.data:
         for comment in discussion.comments:
@@ -203,6 +210,52 @@ def upload_discussions(ss_c, row_id, fpath):
     # add/update filepath to the project folder as a row comment
     return ss_c.Discussions.create_discussion_on_row(
         sheet_id, row_id, ss_c.models.Discussion({'comment': new_comment}))
+
+
+def upload_row_info(ss_c, wb, row_id):
+    """
+    www
+
+    :param smartsheet.Smartsheet ss_c: Smartsheet client object
+    :param xw.Book wb: Excel workbook from which to extract data
+    :param row_id: Smartsheet unique row identifying number
+    :return: Smartsheet server JSON response document
+    :rtype: dict
+    """
+    # build SS row object and append cells for info push
+    job_row: smartsheet.Smartsheet.models.Row = ss_c.models.Row()
+    job_row.id = row_id
+
+    # loop through all columns to construct a cell to append to row if information is provided
+    col: str
+    xl_cell: str
+    for col, xl_cell in col_opts.items():
+        # create Cell instance, assign customer pricing from quote, add cell to Row object
+        if col == 'Customer Pricing':
+            job_row.cells.append(
+                create_cell(ss_c, col, wb=wb, sheet='QUOTE', xl_cell=xl_cell, is_float=True))
+        # create SS cell instance, assign quote date (always today), add cell to Row
+        elif col == 'Date of Quote':
+            job_row.cells.append(
+                create_cell(ss_c, col, cell_val=datetime.date.today().strftime('%Y-%m-%d')))
+        # create SS cell instance, assign deal total from quote, add cell to Row
+        elif col == 'Quote Value':
+            job_row.cells.append(
+                create_cell(ss_c, col, wb=wb, sheet='QUOTE', xl_cell=xl_cell, is_float=True))
+        # create Cell instance, assign boolean value, add cell to Row
+        elif col == 'Special Case 1':
+            job_row.cells.append(
+                create_cell(ss_c, col, wb=wb, sheet='SCHEDULE', xl_cell=xl_cell, is_bool=True))
+        # create Cell instance, assign quote status to Completed, add cell to Row
+        elif col == 'Status':
+            job_row.cells.append(
+                create_cell(ss_c, col, cell_val='Completed'))
+        # all other columns follow the same pattern if a value exists in the Excel file, append with basic Cell instance
+        elif type(cell_val := wb.sheets['SCHEDULE'].range(xl_cell).value) is str:
+            job_row.cells.append(
+                create_cell(ss_c, col, cell_val=cell_val))
+
+    return ss_c.Sheets.update_rows(sheet_id, [job_row])
 
 
 def update_ss():
@@ -218,39 +271,12 @@ def update_ss():
     # instantiate smartsheet client with Quotes smartsheet
     ss_c: smartsheet.Smartsheet = get_ss_client(wb)
 
-    # build SS row object and append cells for info push
+    # grab Smartsheet row ID from project file
     job_row_id: int = int(wb.sheets['SCHEDULE'].range(sch_row_id_cell).value)
-    job_row: smartsheet.Smartsheet.models.Row = ss_c.models.Row()
-    job_row.id = job_row_id
+    # build row/cells with information and push row update to Smartsheet server
+    _updated_row = upload_row_info(ss_c, wb, job_row_id)
 
-    # create SS cell instance, assign deal total from quote, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Quote Value', xl_cell=qte_total_cell, wb=wb, sheet='QUOTE', is_float=True))
-
-    # create SS cell instance, assign quote date (always today), add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Date of Quote', cell_val=datetime.date.today().strftime('%Y-%m-%d')))
-
-    # loop through all columns to construct a cell to append to row if information is provided
-    col: str
-    xl_cell: str
-    for col, xl_cell in simple_cols.items():
-        # create Cell instance, assign quote status to Completed, add cell to Row object
-        if col == 'Status':
-            job_row.cells.append(create_cell(ss_c, col, cell_val='Completed'))
-        # create Cell instance, assign boolean value, add cell to Row object
-        elif col == 'Special Case 1':
-            job_row.cells.append(create_cell(ss_c, 'Special Case 1', wb=wb, sheet='SCHEDULE', xl_cell=xl_cell,
-                                             is_bool=True))
-        # create Cell instance, assign customer pricing from quote, add cell to Row object
-        elif col == 'Customer Pricing':
-            job_row.cells.append(
-                create_cell(ss_c, col, wb=wb, xl_cell=xl_cell, sheet='QUOTE', is_float=True))
-        elif type(cell_val := wb.sheets['SCHEDULE'].range(xl_cell).value) is str:
-            job_row.cells.append(create_cell(ss_c, col, cell_val=cell_val))
-
-    # push row update to Smartsheet server
-    _updated_row = ss_c.Sheets.update_rows(sheet_id, [job_row])
-
-    #
+    # rebuild file names/paths with all possible documents so any that were generated can be uploaded
     quote = rename(wb, 'QUOTE', 'pdf')
     schedule = rename(wb, 'SCHEDULE', 'xlsx')
     submittal = rename(wb, 'SUBMITTAL', 'pdf')
@@ -261,12 +287,12 @@ def update_ss():
     # identify filepath for entry as a comment for reference by sales reps
     fpath = '\\'.join(wb.fullname.split('\\')[:-1])
     # push discussions to Smartsheet server
-    _updated_discussions = upload_discussions(ss_c, fpath, job_row_id)
+    _updated_discussions = upload_discussions(ss_c, job_row_id, fpath)
 
 
 def mark_as_won():
     """
-    Changes the deal status of the active quote's row ID to 'Won', changes the date won to today, and adds the SO#
+    Changes the Quote Status of the active quote's row ID to 'Won', changes the date won to today, and adds the SO#
     to the SO# column.
 
     :return: None
