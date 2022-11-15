@@ -4,8 +4,8 @@ import xlwings as xw
 from rename import rename
 """
 author: Sage Gendron
-Extract data from the engineered schedule and quote to be transformed into a single sales order spreadsheet to allow
-order entry to directly upload the file into the enterprise SQL database.
+Extract data from the engineered schedule and quote sheets in the project file. Data is simplified and transformed into 
+a single sales order .csv file for order entry to directly upload into the enterprise SQL database.
 """
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 sorted_package_list: list[str] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
@@ -15,9 +15,9 @@ sorted_package_list: list[str] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', '
 
 def extract_schedule_data(wb_sch):
     """
-    www
+    Extracts information from schedule required to generate a sales order.
 
-    :param xlwings.Book wb_sch:
+    :param xw.Book wb_sch: Book object containing a schedule sheet
     :return: engr_components -
     :rtype: dict
     """
@@ -26,6 +26,7 @@ def extract_schedule_data(wb_sch):
                                      nrows=1000)
     df.dropna(thresh=3, inplace=True)
     df.reset_index(drop=True)
+
     # transform DataFrame columns into transposed lists
     eq_qty_list: list[int] = df['qty'].values.tolist()
     pkg_key_list: list[str] = df['pkg_key'].values.tolist()
@@ -51,14 +52,12 @@ def extract_quote_data(wb_qte):
     """
     Extracts all information from the quote spreadsheet required to generate a sales order.
 
-    :param xlwings.Book wb_qte:
+    :param xw.Book wb_qte: Book object containing a generated quote sheet
     :return:
-        - package_quantities - list of package quantities extracted from quote spreadsheet
-        - part_numbers - list of part numbers extracted from quote spreadsheet (includes break lines between packages)
-        - part_quantities - list of individual part quantities extracted from quote spreadsheet
-        - part_prices - list of individual part prices extracted from quote spreadsheet
-        - package_prices - list of package prices extracted from quote spreadsheet
-    :rtype: (list, list, list, list, list)
+        - pkg_pn_dict
+        - pn_qty_dict
+        - pn_pricing_dict
+    :rtype: (dict, dict, dict)
     """
     # create pandas.DataFrame object from quote file to dynamically process packages
     df: pd.DataFrame = pd.read_excel(wb_qte.fullname, sheet_name='QUOTE', header=0, usecols='E:L', skiprows=12,
@@ -72,7 +71,45 @@ def extract_quote_data(wb_qte):
     part_prices: list[float] = df['net price'].values.tolist()
     package_prices: list[float] = df['pkg price'].values.tolist()
 
-    return package_quantities, part_numbers, part_quantities, part_prices, package_prices
+    #
+    pkg_pn_dict: dict[str, list[str]] = {}
+    pn_qty_dict: dict[str, list[int]] = {}
+    pn_pricing_dict: dict[str, list[float]] = {}
+
+    # instantiate helper variables that only change when a quoted package has completed its loop
+    current_pkg: str = ''
+    current_pkg_qty: int = 0
+
+    # loop through part numbers in quote to identify which packages should be included in SO
+    pt: str
+    for pkg_qty, pt, pt_qty, pt_price, pkg_price in zip(
+            package_quantities, part_numbers, part_quantities, part_prices, package_prices):
+        if type(pt) is not float and pt.startswith('PACK'):
+            # handle zero quantity packages (ADDs, ALTs, 0 qty releases)
+            if pkg_qty == 0.0:
+                current_pkg = ''
+                current_pkg_qty = 0
+                continue
+
+            # only proceed/include if the package net is > 0
+            if pkg_price > 0.0:
+                # handle packages with keys > Z (ex. AA)
+                current_pkg = pt[-2] if len(pt) == 10 else f"A{pt[-2]}"
+                # apply package quantity to local variable for multiplication at each part within package
+                current_pkg_qty = pkg_qty
+                # instantiate empty lists (at dict key pkg_key) for parts, quantities, and nets for the current pkg_key
+                pkg_pn_dict[current_pkg]: list[str] = []
+                pn_qty_dict[current_pkg]: list[int] = []
+                pn_pricing_dict[current_pkg]: list[float] = []
+
+        # for each package, where current_pkg local variable is not blank, add parts, qtys, net prices to previously
+        # instantiated lists as required
+        elif current_pkg != '' and type(pt) is not float and pt != '' and pt[:2] not in ('AUX1', 'AUX2'):
+            pkg_pn_dict[current_pkg].append(pt)
+            pn_qty_dict[current_pkg].append(pt_qty * current_pkg_qty)
+            pn_pricing_dict[current_pkg].append(pt_price)
+
+    return pkg_pn_dict, pn_qty_dict, pn_pricing_dict
 
 
 def generate_sales_order():
@@ -90,56 +127,12 @@ def generate_sales_order():
     engr_components = extract_schedule_data(wb)
 
     #
-    package_quantities, part_numbers, part_quantities, part_prices, package_prices = extract_quote_data(wb)
+    pkg_pn_dict, pn_qty_dict, pn_pricing_dict = extract_quote_data(wb)
 
-    #
-    quote_pkg_pndict: dict = {}
-    quote_pn_qtydict: dict = {}
-    quote_pn_netdict: dict = {}
-
-    #
-    index: int = 0
-    current_pkg: str = ''
-    current_pkg_qty: int = 0
-
-    # loop through part numbers in quote to identify which packages should be included in SO
-    pt: str
-    for pkg_qty, pt, pt_qty, pt_price, pkg_price in zip(
-            package_quantities, part_numbers, part_quantities, part_prices, package_prices):
-        if type(pt) is not float and pt.startswith('PACK'):
-            # handle zero quantity packages (ADDs, ALTs, 0 qty releases)
-            if package_quantities[index] == 0.0:
-                current_pkg = ''
-                current_pkg_qty = 0
-                index += 1
-                continue
-
-            # only proceed/include if the package net is > 0
-            if package_prices[index] > 0.0:
-                # handle packages with keys > Z (ex. AA)
-                current_pkg = pt[-2] if len(pt) == 10 else f"A{pt[-2]}"
-
-                # apply package quantity to local variable for multiplication at each part within package
-                current_pkg_qty = package_quantities[index]
-
-                # instantiate empty lists (at dict key pkg_key) for parts, quantities, and nets for the current pkg_key
-                quote_pkg_pndict[current_pkg]: list[str] = []
-                quote_pn_qtydict[current_pkg]: list[int] = []
-                quote_pn_netdict[current_pkg]: list[float] = []
-
-        # for each package, where current_pkg local variable is not blank, add parts, qtys, net prices to previously
-        # instantiated lists as required
-        elif current_pkg != '' and type(pt) is not float and pt != '' and pt[:2] not in ('AUX1', 'AUX2'):
-            quote_pkg_pndict[current_pkg].append(pt)
-            quote_pn_qtydict[current_pkg].append(part_quantities[index] * current_pkg_qty)
-            quote_pn_netdict[current_pkg].append(part_prices[index])
-
-        index += 1
-
-    #
+    # assign balance components to kits if required
     let: str
-    for let in quote_pkg_pndict:
-        # assign balance components to kits if required
+    for let in pkg_pn_dict:
+        #
         if let not in engr_components:
             continue
         #
@@ -152,23 +145,23 @@ def generate_sales_order():
                 continue
 
             # add the engineered component, its quantity, $0 and no notes to the sales order part list
-            quote_pkg_pndict[let].append(k)
-            quote_pn_qtydict[let].append(v)
-            quote_pn_netdict[let].append(0.0)
+            pkg_pn_dict[let].append(k)
+            pn_qty_dict[let].append(v)
+            pn_pricing_dict[let].append(0.0)
             # grab first two characters of the balance component for cartridge supplementary parts
             aux_type = k[:2]
             i += v
 
         # append extra part if AUX1 indicated
         if aux_type == 'AUX1':
-            quote_pkg_pndict[let].append('screw')
-            quote_pn_qtydict[let].append(i)
-            quote_pn_netdict[let].append(0.0)
+            pkg_pn_dict[let].append('screw')
+            pn_qty_dict[let].append(i)
+            pn_pricing_dict[let].append(0.0)
         # append extra parts if AUX2 indicated (1 of first auxiliary part, 2 of second)
         elif aux_type == 'AUX2':
-            quote_pkg_pndict[let].extend(['screw', 'washer'])
-            quote_pn_qtydict[let].extend([i, i*2])
-            quote_pn_netdict[let].extend([0.0, 0.0])
+            pkg_pn_dict[let].extend(['screw', 'washer'])
+            pn_qty_dict[let].extend([i, i*2])
+            pn_pricing_dict[let].extend([0.0, 0.0])
 
     pn_list: list[str] = []
     qty_list: list[int] = []
@@ -176,13 +169,13 @@ def generate_sales_order():
     # remove empty strings from lists and change into simple lists in alphabetical package order for write to Excel
     pkg_key: str
     for pkg_key in sorted_package_list:
-        if pkg_key not in quote_pkg_pndict:
+        if pkg_key not in pkg_pn_dict:
             continue
-        for pt in quote_pkg_pndict[pkg_key]:
+        for pt in pkg_pn_dict[pkg_key]:
             pn_list.append(pt)
-        for qty in quote_pn_qtydict[pkg_key]:
+        for qty in pn_qty_dict[pkg_key]:
             qty_list.append(qty)
-        for net in quote_pn_netdict[pkg_key]:
+        for net in pn_pricing_dict[pkg_key]:
             net_list.append(net)
 
     # generate sales order filename
