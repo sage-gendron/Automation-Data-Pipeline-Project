@@ -5,7 +5,11 @@ import xlwings as xw
 from rename import rename
 """
 author: Sage Gendron
+These functions handle data transfer from the Excel-based estimating process and Smartsheet servers (which is primarily
+used as a data repository and lead tracking for sales representative). 
 
+update_smartsheet() and mark_as_won() called via the Excel project files by the Estimating and Customer Service
+departments respectively. 
 """
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 # smartsheet API keys by user
@@ -19,10 +23,9 @@ sheet_id: str = '@@@'
 
 # create unique column ID dictionary for reference below
 column_ids: dict[str, int] = {
-    'Status': 111000, 'Customer Pricing': 666000, 'Quote Value': 777000, 'Quote Date': 101010, 'Date Won': 121212,
-    'Deal Status': 131313, 'Industry': 161616, 'Engineered Component': 171717, 'Special Case 1': 181818,
-    'Equipment Type': 191919, 'Engineer': 202020, 'Street Address': 212121, 'City': 222222, 'State': 232323,
-    'Zip': 242424, 'SO #': 262626, 'Phase': 272727
+    'City': 222222, 'Customer Pricing': 666000, 'Date Won': 121212, 'Engineer': 202020, 'Engineered Component': 171717,
+    'Equipment Type': 191919, 'Industry': 161616, 'Phase': 272727, 'Quote Date': 101010, 'Quote Value': 777000,
+    'SO #': 262626, 'Special Case 1': 181818, 'State': 232323, 'Status': 111000, 'Street Address': 212121, 'Zip': 242424
 }
 
 # general Excel cell locations
@@ -31,9 +34,9 @@ so_cell: str = 'G22'  # only used for mark_as_won()
 
 # schedule Excel file cell variables for update_smartsheet()
 col_opts: dict[str, str] = {
-    'Industry': 'D3', 'Engineered Component': 'D4', 'Special Case 1': 'D5', 'Equipment Type': 'D6', 'Engineer': 'C22',
-    'Street Address': 'D7', 'City': 'D8', 'State': 'D9', 'Zip': 'D10', 'Phase': 'G24', 'Customer Pricing': 'A3',
-    'Quote Value': 'AA4', 'Date of Quote': None, 'Status': None
+    'City': 'D8', 'Customer Pricing': 'A3', 'Engineer': 'C22', 'Engineered Component': 'D4', 'Equipment Type': 'D6',
+    'Industry': 'D3', 'Phase': 'G24', 'Quote Date': None, 'Quote Value': 'AA4', 'Special Case 1': 'D5', 'State': 'D9',
+    'Status': None, 'Street Address': 'D7',  'Zip': 'D10'
 }
 
 
@@ -102,7 +105,8 @@ def create_cell(ss_c, col_name, wb=None, sheet=None, xl_cell=None, is_float=Fals
 
 def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
     """
-    www
+    Checks for already-uploaded attachments (in case Smartsheet is being updated twice for the same row), attaches
+    new versions of each file if this is the case. If files were not previously uploaded, uploads new attachments.
 
     :param smartsheet.Smartsheet ss_c: Smartsheet client object
     :param int row_id: Smartsheet unique row identifying number
@@ -116,7 +120,7 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
     # grab existing attachments (if they exist) to help decide what to update
     current_attachments = ss_c.Attachments.list_row_attachments(sheet_id, row_id)
 
-    #
+    # create flag variables for attachment updates
     update_quote_upload = False
     update_schedule_upload = False
     update_submittal_upload = False
@@ -134,7 +138,7 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
         elif attachment.name == opt_quote.split('\\')[-1]:
             update_opt_quote_upload = True
 
-    #
+    # create empty list to store Smartsheet server responses if ever required
     _updated_attachments = []
 
     # attaches a new version of the pdf quote if one was found, otherwise uploads a new file
@@ -186,7 +190,8 @@ def upload_attachments(ss_c, row_id, quote, schedule, submittal, opt_quote):
 
 def upload_discussions(ss_c, row_id, fpath):
     """
-    www
+    Checks to see if the active file path is already posted (in order to prevent duplicate postings). If required,
+    proceeds to post the current file path as a comment for field reference.
 
     :param smartsheet.Smartsheet ss_c: Smartsheet client object
     :param int row_id: Smartsheet unique row identifying number
@@ -214,7 +219,8 @@ def upload_discussions(ss_c, row_id, fpath):
 
 def upload_row_info(ss_c, wb, row_id):
     """
-    www
+    Builds new Row object, loops through the col_opts global variable, and builds Cell objects with information provided
+    in the Excel project file. Handles different data types once extracted from Excel as required.
 
     :param smartsheet.Smartsheet ss_c: Smartsheet client object
     :param xw.Book wb: Excel workbook from which to extract data
@@ -235,7 +241,7 @@ def upload_row_info(ss_c, wb, row_id):
             job_row.cells.append(
                 create_cell(ss_c, col, wb=wb, sheet='QUOTE', xl_cell=xl_cell, is_float=True))
         # create SS cell instance, assign quote date (always today), add cell to Row
-        elif col == 'Date of Quote':
+        elif col == 'Quote Date':
             job_row.cells.append(
                 create_cell(ss_c, col, cell_val=datetime.date.today().strftime('%Y-%m-%d')))
         # create SS cell instance, assign deal total from quote, add cell to Row
@@ -314,14 +320,12 @@ def mark_as_won():
     job_row: smartsheet.Smartsheet.models.Row = ss_c.models.Row()
     job_row.id = job_row_id
 
-    # create SS cell instance, assign quote status information, add cell to SS row object
-    job_row.cells.append(create_cell(ss_c, 'Status', cell_val='Won'))
-
-    # create SS cell instance, assign date won (always today), add cell to SS row object
+    # create SS cell instance, assign date won (always today), add cell to Row
     job_row.cells.append(create_cell(ss_c, 'Date Won', cell_val=datetime.date.today().strftime('%Y-%m-%d')))
-
-    # create SS cell instance, assign sales order # (NoneType if cell is blank), add cell to SS row object
+    # create SS cell instance, assign sales order # (NoneType if cell is blank), add cell to Row
     job_row.cells.append(create_cell(ss_c, 'SO #', cell_val=so_no))
+    # create SS cell instance, assign quote status information, add cell to Row
+    job_row.cells.append(create_cell(ss_c, 'Status', cell_val='Won'))
 
     # push SS row object as an update to SS server via previously instantiated Sheets object
     _updated_row = ss_c.Sheets.update_rows(sheet_id, [job_row])
