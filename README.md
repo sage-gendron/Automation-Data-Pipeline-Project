@@ -1,9 +1,10 @@
 # Example-Automation-Project
 
 ### Summary
-This is intended to showcase some example code modules that originally represented 
+This is intended to showcase some example code modules that were designed to represent an estimating design process
+where all components were originally done by hand, but have now been 
 
-All modules were coded in Python using the dependencies listed in requirements.txt.
+All modules were coded in Python using xlwings, pandas, pdfrw, pypdf2, and smartsheet-python-sdk.
 
 ### Disclaimer
 This has been re-coded to indicate the gists of the processes and to protect the identity of the company, its internal
