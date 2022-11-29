@@ -34,7 +34,7 @@ def generate_description(json_sch):
         # pull out package key to check if description has already been created
         pkg: str = json_sch[kit]['pkg_key']
 
-        # if the pkg key is in the descriptions dict, the description has already generated, just checks eq_type
+        # if the pkg key is in descriptions, the description has already been generated, so it just checks eq_type
         if pkg in descriptions.keys():
             if pkg not in skip_eq and (eq_type := json_sch[kit]['eq_type']) not in pack_eq_types[pkg]:
                 pack_eq_types[pkg].append(eq_type)

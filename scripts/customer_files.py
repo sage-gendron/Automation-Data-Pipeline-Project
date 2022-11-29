@@ -2,7 +2,7 @@
 import xlwings as xw
 import os
 import shutil
-from rename import rename
+from scripts.utils.rename import rename
 """
 author: Sage Gendron
 Handles copying template files and copying required information from automated Excel workbooks to 'flat' Excel files for

@@ -1,5 +1,5 @@
 # connection_types.py
-from product_quote import size_dict, max_rate
+from scripts.product_quote import size_dict, max_rate
 
 """
 author: Sage Gendron
