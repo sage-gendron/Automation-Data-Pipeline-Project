@@ -1,7 +1,10 @@
-# quote_descriptions.py
+# descriptions.py
 """
 author: Sage Gendron
-
+Creates descriptions based on information provided on the engineered schedule. Only generates one description per
+package key.
+Assigns descriptions to the to-be-exported data packet and, on a different call, assigns descriptions to the quote file
+by package key.
 """
 quote_kit_descrip: dict[str, str] = {
     'A': 'H15', 'B': 'H30', 'C': 'H45', 'D': 'H60', 'E': 'H75', 'F': 'H90', 'G': 'H105', 'H': 'H120', 'I': 'H135',
@@ -15,13 +18,13 @@ def generate_description(json_sch):
     """
     Creates description per package based on size, coil, and cv (if info supplied).
 
-    :param list json_sch: list of dictionaries representing the excel schedule
+    :param list json_sch: list of dictionaries representing the Excel engineered schedule
     :return:
-        - json_sch - list of dictionaries representing the excel schedule
+        - json_sch - list of dictionaries representing the Excel engineered schedule
         - quote_descr - dictionary of {sizes: per-package descriptions} both in string format
     :rtype: (list, dict)
     """
-    descrips: dict[str, str] = {}
+    descriptions: dict[str, str] = {}
     pack_eq_types: dict[str, list[str]] = {}
     skip_eq: list[str] = []
 
@@ -31,25 +34,25 @@ def generate_description(json_sch):
         # pull out package key to check if description has already been created
         pkg: str = json_sch[kit]['pkg_key']
 
-        # if the pkg key is in the descrips dict, the description has already generated, just checks eq_type
-        if pkg in descrips.keys():
-            if pkg not in skip_eq and (temp_eq_type := json_sch[kit]['eq_type']) not in pack_eq_types[pkg]:
-                pack_eq_types[pkg].append(temp_eq_type)
+        # if the pkg key is in the descriptions dict, the description has already generated, just checks eq_type
+        if pkg in descriptions.keys():
+            if pkg not in skip_eq and (eq_type := json_sch[kit]['eq_type']) not in pack_eq_types[pkg]:
+                pack_eq_types[pkg].append(eq_type)
 
         # if the pkg key is not in the dict it will form a list that will be referred to in assign_descrip_to_quote
         else:
             # instantiate package-specific helper variables
-            descrip: list[str] = []
-            inc_coil: bool = False
-            inc_cv: bool = False
+            description: list[str] = []
+            inc_connection: bool = False
+            inc_control: bool = False
 
-            # create eq_type list in dictionary to be appended to descrips later
-            if type(temp_eq_type := json_sch[kit]['eq_type']) not in (None, float):
-                pack_eq_types[pkg] = [temp_eq_type]
+            # create eq_type list in dictionary to be appended to descriptions later
+            if type(eq_type := json_sch[kit]['eq_type']) not in (None, float):
+                pack_eq_types[pkg] = [eq_type]
             elif pkg not in skip_eq:
                 skip_eq.append(pkg)
 
-            # grab relevant fields from json_sch to speed up lookups
+            # grab relevant fields from schedule row to speed up lookups
             rate: float = json_sch[kit]['rate']
             size: str = json_sch[kit]['size']
             conn_size: str = json_sch[kit]['conn_size']
@@ -57,95 +60,87 @@ def generate_description(json_sch):
             control_type: str = json_sch[kit]['control_type']
 
             # check for small size kits
-            is_sm: bool
-            is_sm = True if size == 'SMALL' and rate <= 5 else False
+            is_sm: bool = True if size == 'SMALL' and rate <= 5 else False
 
-            # check for PICV/CV kits to catch cv and max rate notes in description
-            cv_way: str
+            # check for control types kits to catch control and max rate notes in description
+            control_method: str
             if type(control_type) not in (None, float):
-                # if controls by HCI
-                if 'HCI' in control_type:
-                    # if PICV, make cv_way PICV in lieu of '2-WAY' else grab cv_way from schedule
-                    cv_way = 'PICV' if 'PICV' in control_type else json_sch[kit]['cv_way']
-                # if controls by other
-                else:
-                    # if PICV, make cv_way PICV in lieu of '2-WAY' else grab cv_way from schedule
-                    cv_way = 'PICV' if 'PICV' in control_type else json_sch[kit]['cv_way']
+                # if control type 2, make control_method CTRL_TYPE_2 else grab control_method from schedule
+                control_method = 'CTRL_TYPE_2' if 'CTRL_TYPE_2' in control_type else json_sch[kit]['control_method']
             else:
                 # default to not including any of the below 3 items
-                cv_way = None
+                control_method = ''
 
             # this is splitting the control_size_type at the space and solely grabbing the size component
             control_size: str
             try:
-                cv_split: list[str] = control_size_type.split()
-                control_size = cv_split[0]
+                control_size = control_size_type.split()[0]
             except AttributeError:
                 control_size = size
 
-            # if not stacked and coil or control valve sizes do not equal runout size, include in description
+            # if connection or control sizes do not equal system size, include in description
             if size != conn_size and conn_size != 'TBD':
-                inc_coil = True
+                inc_connection = True
             if size != control_size and control_size != 'TBD':
-                inc_cv = True
+                inc_control = True
 
             # start with system size
-            descrip.append(size)
+            description.append(size)
 
-            # if compact add the word before control valve type
+            # if small size package, add the word before control type
             if is_sm:
-                descrip.append('Small')
+                description.append('Small')
 
-            # if not a no-control-valve kit, include 2-way, 3-way, or PICV
-            if cv_way in ('2-WAY', '3-WAY', 'PICV'):
-                descrip.append(cv_way)
+            # if a package with control, include type 2, type 3, or control_type_2
+            if control_method in ('TYPE-2 PKG', 'TYPE-3 PKG', 'CTRL_TYPE_2'):
+                description.append(control_method)
 
             # add the word kits always (also always plural)
-            descrip.append('Kits')
+            description.append('Kits')
 
-            # if coil and cv sizes both required, handle differently than if just one of the two
-            if inc_coil and inc_cv:
-                descrip.append(f"({conn_size} Connection, {control_size} Control)")
-            elif inc_coil:
-                descrip.append(f"({conn_size} Connection)")
-            elif inc_cv:
-                descrip.append(f"({control_size} Control)")
+            # if connection and control sizes both required, handle differently than if just one of the two
+            if inc_connection and inc_control:
+                description.append(f"({conn_size} Connection, {control_size} Control)")
+            elif inc_connection:
+                description.append(f"({conn_size} Connection)")
+            elif inc_control:
+                description.append(f"({control_size} Control)")
 
-            # join the description with spaces (EQ types to be added later)
-            descrips[pkg] = ' '.join(descrip)
+            # join the description with spaces (EQ types to be added below)
+            descriptions[pkg] = ' '.join(description)
 
     complete_descrips: dict[str, str] = {}
     kit: int
     for kit in range(len(json_sch)):
-        # assign description to json_sch to be printed in data packet
+        # assign description to json_sch for export in data packet
         pkg: str = json_sch[kit]['pkg_key']
         if pkg not in complete_descrips.keys():
             if pkg not in skip_eq:
                 # compile equipment types per package into a single string
                 eq_types: str = ', '.join(pack_eq_types[pkg])
                 # add equipment types to the pre-generated description for each package and compile into single string
-                complete_descrips[pkg] = f"{descrips[pkg]} ({eq_types})"
+                complete_descrips[pkg] = f"{descriptions[pkg]} ({eq_types})"
             else:
-                complete_descrips[pkg] = descrips[pkg]
+                complete_descrips[pkg] = descriptions[pkg]
         json_sch[kit]['quote_descrip'] = complete_descrips[pkg]
 
     return json_sch, complete_descrips
 
 
-def assign_descrip_to_quote(wb, descrip_dict):
+def assign_descrip_to_quote(wb, descrips_by_pkg):
     """
     Iterates through description dict and assigns values to keyed packages in global variable quote_kit_descrip.
     **This function is non-dynamic and iterates through quote_kit_descrip global variable at top of file**
 
-    :param xw.Book wb: xlwings Book representing combination schedule/quote file with sheet[1] being the quote
-    :param dict descrip_dict: dict of package key: description
-    :return: None - changes made to Excel file
+    :param xw.Book wb: represents combination schedule/quote file
+    :param dict descrips_by_pkg: dict of package key: description
+    :return: None - changes made directly to Excel file
     """
     # iterate through generated descriptions and assign package descriptions to quote sheet
     try:
         k: str
         v: str
-        for k, v in descrip_dict.items():
+        for k, v in descrips_by_pkg.items():
             wb.sheets['QUOTE'].range(quote_kit_descrip[k]).value = v
     except KeyError:
         raise Exception('Please check to make sure your package keys are all upper case and between \'A\' and \'AN\'.')
