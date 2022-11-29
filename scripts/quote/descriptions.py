@@ -1,4 +1,4 @@
-# descriptions.py
+# scripts/quote/descriptions.py
 """
 author: Sage Gendron
 Creates descriptions based on information provided on the engineered schedule. Only generates one description per
@@ -6,6 +6,7 @@ package key.
 Assigns descriptions to the to-be-exported data packet and, on a different call, assigns descriptions to the quote file
 by package key.
 """
+# maps available description cells by package key
 quote_kit_descrip: dict[str, str] = {
     'A': 'H15', 'B': 'H30', 'C': 'H45', 'D': 'H60', 'E': 'H75', 'F': 'H90', 'G': 'H105', 'H': 'H120', 'I': 'H135',
     'J': 'H150', 'K': 'H165', 'L': 'H180', 'M': 'H195', 'N': 'H210', 'O': 'H225', 'P': 'H240', 'Q': 'H255', 'R': 'H270',
@@ -16,7 +17,7 @@ quote_kit_descrip: dict[str, str] = {
 
 def generate_description(json_sch):
     """
-    Creates description per package based on size, coil, and cv (if info supplied).
+    Creates description per package based on system size, connection, and control type/size (if info supplied).
 
     :param list json_sch: list of dictionaries representing the Excel engineered schedule
     :return:
@@ -28,15 +29,15 @@ def generate_description(json_sch):
     pack_eq_types: dict[str, list[str]] = {}
     skip_eq: list[str] = []
 
-    # iterate over json entries with iterative variable 'kit'
-    kit: int
-    for kit in range(len(json_sch)):
+    # iterate over JSON entries
+    row: dict[str, ...]
+    for row in json_sch:
         # pull out package key to check if description has already been created
-        pkg: str = json_sch[kit]['pkg_key']
+        pkg: str = row['pkg_key']
 
-        # if the pkg key is in descriptions, the description has already been generated, so it just checks eq_type
+        # if the pkg key is in descriptions, the description has already been generated, so just check eq_type
         if pkg in descriptions.keys():
-            if pkg not in skip_eq and (eq_type := json_sch[kit]['eq_type']) not in pack_eq_types[pkg]:
+            if pkg not in skip_eq and (eq_type := row['eq_type']) not in pack_eq_types[pkg]:
                 pack_eq_types[pkg].append(eq_type)
 
         # if the pkg key is not in the dict it will form a list that will be referred to in assign_descrip_to_quote
@@ -47,17 +48,17 @@ def generate_description(json_sch):
             inc_control: bool = False
 
             # create eq_type list in dictionary to be appended to descriptions later
-            if type(eq_type := json_sch[kit]['eq_type']) not in (None, float):
+            if type(eq_type := row['eq_type']) not in (None, float):
                 pack_eq_types[pkg] = [eq_type]
             elif pkg not in skip_eq:
                 skip_eq.append(pkg)
 
-            # grab relevant fields from schedule row to speed up lookups
-            rate: float = json_sch[kit]['rate']
-            size: str = json_sch[kit]['size']
-            conn_size: str = json_sch[kit]['conn_size']
-            control_size_type: str = json_sch[kit]['control_size_type']
-            control_type: str = json_sch[kit]['control_type']
+            # grab relevant fields from schedule row
+            rate: float = row['rate']
+            size: str = row['size']
+            conn_size: str = row['conn_size']
+            control_size_type: str = row['control_size_type']
+            control_type: str = row['control_type']
 
             # check for small size kits
             is_sm: bool = True if size == 'SMALL' and rate <= 5 else False
@@ -66,7 +67,7 @@ def generate_description(json_sch):
             control_method: str
             if type(control_type) not in (None, float):
                 # if control type 2, make control_method CTRL_TYPE_2 else grab control_method from schedule
-                control_method = 'CTRL_TYPE_2' if 'CTRL_TYPE_2' in control_type else json_sch[kit]['control_method']
+                control_method = 'CTRL_TYPE_2' if 'CTRL_TYPE_2' in control_type else row['control_method']
             else:
                 # default to not including any of the below 3 items
                 control_method = ''
@@ -84,7 +85,7 @@ def generate_description(json_sch):
             if size != control_size and control_size != 'TBD':
                 inc_control = True
 
-            # start with system size
+            # start building the description with system size
             description.append(size)
 
             # if small size package, add the word before control type
@@ -110,10 +111,10 @@ def generate_description(json_sch):
             descriptions[pkg] = ' '.join(description)
 
     complete_descrips: dict[str, str] = {}
-    kit: int
-    for kit in range(len(json_sch)):
+    row: dict[str, ...]
+    for row in json_sch:
         # assign description to json_sch for export in data packet
-        pkg: str = json_sch[kit]['pkg_key']
+        pkg: str = row['pkg_key']
         if pkg not in complete_descrips.keys():
             if pkg not in skip_eq:
                 # compile equipment types per package into a single string
@@ -122,7 +123,7 @@ def generate_description(json_sch):
                 complete_descrips[pkg] = f"{descriptions[pkg]} ({eq_types})"
             else:
                 complete_descrips[pkg] = descriptions[pkg]
-        json_sch[kit]['quote_descrip'] = complete_descrips[pkg]
+        row['quote_descrip'] = complete_descrips[pkg]
 
     return json_sch, complete_descrips
 
@@ -133,7 +134,7 @@ def assign_descrip_to_quote(wb, descrips_by_pkg):
     **This function is non-dynamic and iterates through quote_kit_descrip global variable at top of file**
 
     :param xw.Book wb: represents combination schedule/quote file
-    :param dict descrips_by_pkg: dict of package key: description
+    :param dict descrips_by_pkg: dict of {package key: description}
     :return: None - changes made directly to Excel file
     """
     # iterate through generated descriptions and assign package descriptions to quote sheet
