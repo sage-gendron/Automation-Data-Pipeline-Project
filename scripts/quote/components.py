@@ -1,4 +1,4 @@
-# components.py
+# scripts/quote/components.py
 """
 author: Sage Gendron
 Uses information provided to return a base model/part number to be altered by required connection types.
@@ -7,13 +7,12 @@ Uses information provided to return a base model/part number to be altered by re
 
 def typ_component(rate, size, char):
     """
-    Creates base pn depending on component letter. For 2" and below, non-special_case_1 only.
+    Creates base pn depending on component letter. For size 6 and below, non-special_case_1 only.
 
-    :param float rate: flow rate for the given kit
+    :param float rate: engineer-provided rate
     :param str size: system size (in letter form)
     :param str char: indexed character in drawing file representing component to be quoted
-    :return:
-        - pn - part number to be altered
+    :return: pn - base part number to be altered based on connection types
     :rtype: str
     """
     pn: str = ''
@@ -35,20 +34,21 @@ def typ_component(rate, size, char):
         else:
             pn = f"D-{size}++"
     elif char == 'E':
-        pn = f"E-{size}FF"
+        pn = f"E-{size}++"
+    else:
+        raise Exception(f"Part number {char} not found for size {size}. Please review drawing name and try again.")
 
     return pn
 
 
 def sp_case_1_component(rate, size, char):
     """
-    Creates base pn with ss trim depending on component letter. For 2" and below only.
+    Creates base part number with special_case_1 notation depending on component letter. For size 6 and below only.
 
-    :param float rate: rate for the given kit
+    :param float rate: engineer-provided rate
     :param str size: system size (in letter form)
     :param str char: indexed character in drawing file representing component to be quoted
-    :return:
-        - pn - base part number to be altered based on connection types
+    :return: pn - base part number to be altered based on connection types
     :rtype: str
     """
     pn: str = ''
@@ -70,16 +70,18 @@ def sp_case_1_component(rate, size, char):
         else:
             pn = f"DSP1-{size}++"
     elif char == 'E':
-        pn = f"ESP1-{size}FF"
+        pn = f"ESP1-{size}++"
+    else:
+        raise Exception(f"Part number {char} not found for size {size}. Please review drawing name and try again.")
 
     return pn
 
 
 def lg_component(rate, size, char):
     """
-    Creates base part number depending on component letter. For large size packages only.
+    Creates base part number depending on component letter. For large size (greater than size 6) packages only.
 
-    :param float rate: rate for the given package
+    :param float rate: engineer-provided rate
     :param str size: system size (in letter form)
     :param str char: indexed character in drawing file representing component to be quoted
     :return: pn - base part number to be altered based on connection types
@@ -117,5 +119,7 @@ def lg_component(rate, size, char):
                 pn = f"{pn}-HIGH"
     elif char == 'E':
         pn = f"E-{size}LG"
+    else:
+        raise Exception(f"Part number {char} not found for size {size}. Please review drawing name and try again.")
 
     return pn

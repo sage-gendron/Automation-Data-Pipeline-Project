@@ -1,13 +1,13 @@
 # customer_files.py
-import xlwings as xw
-import os
-import shutil
-from scripts.utils.rename import rename
 """
 author: Sage Gendron
 Handles copying template files and copying required information from automated Excel workbooks to 'flat' Excel files for
 customer/engineer consumption.
 """
+import xlwings as xw
+import os
+import shutil
+from utils.rename import rename
 
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 # Template file locations

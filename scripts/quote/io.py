@@ -1,9 +1,12 @@
-# io.py
-import xlwings as xw
+# scripts/quote/io.py
 """
 author: Sage Gendron
-
+Contains functions to interact with the quote sheet within the project Excel file.
+Primarily assigns quoted packages to standard Excel cell ranges (where lookups pull pricing from a database), but also
+alters quoted_by cell and can clear the quote sheet if necessary (on revisions).
 """
+import xlwings as xw
+
 # Excel Quote cell ranges (dictionaries) for packages
 quote_kitqty: dict[str, str] = {
     'A': 'E15', 'B': 'E30', 'C': 'E45', 'D': 'E60', 'E': 'E75', 'F': 'E90', 'G': 'E105', 'H': 'E120', 'I': 'E135',
@@ -34,7 +37,7 @@ user1_cell: str = 'AB4'
 user2_cell: str = 'AB8'
 user3_cell: str = 'AB6'
 # variables for clear_quote()
-quote_template_loc: str = r""
+quote_template_loc: str = r'C:\Estimating\Customer\Project Template.xlsm'
 text_quote_range: str = 'E14:G682'
 quote_fx_range: str = 'H14:L682'
 
@@ -58,16 +61,16 @@ def assign_pn_to_quote(wb, sub_dwg_dict, package_quantities):
     m: str
     n: list[str, list[str], list[int]]
     for m, n in sub_dwg_dict.items():
-        # check for component list length less than package size allowable on quote (14 rows)
+        # ensure component list length less than package size allowable on quote (14 rows)
         if len(n[1]) > 13:
-            raise Exception(f"Package {m} is longer than the allowable Package size on the quote.")
+            raise Exception(f"Package {m} is longer than the allowable package size on the quote.")
         wb.sheets['QUOTE'].range(quote_kit_pnrange[m]).options(transpose=True).value = n[1]
         wb.sheets['QUOTE'].range(quote_kit_pnqty[m]).options(transpose=True).value = n[2]
 
 
 def quoted_by(wb):
     """
-    Changes 'quoted by' according to file name initials
+    Changes 'quoted by' signature and initials within quote according to file name initials
 
     :param xw.Book wb: Book representing project file
     :return: None - changes made to Excel file
