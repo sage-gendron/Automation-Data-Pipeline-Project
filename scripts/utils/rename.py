@@ -1,4 +1,4 @@
-# rename.py
+# scripts/utils/rename.py
 """
 author: Sage Gendron
 Reconstructs a filepath based on the xlwings Book object passed to the function. The function is designed around using

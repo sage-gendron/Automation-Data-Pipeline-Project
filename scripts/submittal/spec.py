@@ -1,4 +1,4 @@
-# det_spec.py
+# scripts/submittal/spec.py
 """
 author: Sage Gendron
 Module to assist in determining specification sheets required to be included in submittal document generation.
@@ -7,10 +7,9 @@ Module to assist in determining specification sheets required to be included in 
 ctrl_1_sm_part: dict[str, str] = {'24V': 'R-24.pdf', '120V': 'R-120.pdf'}
 ctrl_1_lg_part: dict[str, dict[str, str]] = {
     '24V': {'1': 'Y-1-24.pdf', '2': 'Y-2-24.pdf', '3"': 'Y-3-24.pdf'},
-    '120V': {'1': 'Y-1-120.pdf', '2"': 'Y-2-120.pdf', '3': 'Y-3-120.pdf'}
-    }
+    '120V': {'1': 'Y-1-120.pdf', '2"': 'Y-2-120.pdf', '3': 'Y-3-120.pdf'}}
 ctrl_2_sm_part: dict[str, str] = {'24V': 'S-24.pdf', '120V': 'S-120.pdf'}
-ctrl_2_lg_part: dict[str, str] = {'24V': 'T-24.pdf', '120V': 'T-120.pdf',}
+ctrl_2_lg_part: dict[str, str] = {'24V': 'T-24.pdf', '120V': 'T-120.pdf'}
 
 
 def lg_spec(dwg_parts, spec_list_lg):

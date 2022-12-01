@@ -1,16 +1,18 @@
-# product_submittal.py
-import xlwings as xw
-import pandas as pd
-from scripts.utils.rename import rename
-from pdfrw import PdfReader, PdfWriter
-import os
-from determine_spec import lg_spec, typ_spec, sp_case_1, sp_case_2, controls
-from DWG import DWG
+# scripts/product_submittal.py
 """
 author: Sage Gendron
-Master file to concatenate submittal drawings and spec sheets based on unique drawing codes. Takes user input to index 
+Master file to concatenate submittal drawings and spec sheets based on unique drawing codes. Takes user input to index
 available drawings, asks submittal refining questions and returns a full submittal file in a base directory.
 """
+import xlwings as xw
+import pandas as pd
+import os
+from pdfrw import PdfReader, PdfWriter
+
+from submittal.DWG import DWG
+from submittal.spec import lg_spec, typ_spec, sp_case_1, sp_case_2, controls
+from utils.rename import rename
+
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 spec_loc: str = r'C:\Estimating\Specification Pages'
 

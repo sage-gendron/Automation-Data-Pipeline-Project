@@ -1,5 +1,4 @@
-# DWG.py
-import re
+# scripts/submittal/DWG.py
 """
 author: Sage Gendron
 Object representing an engineering drawing to help aid in submittal generation.
@@ -9,6 +8,7 @@ the submittal generation process as initially it was quite slow. The creation of
 to a full refactor of the product_quote.py file along with implementing some object-oriented practices there as well,
 but it was not destined to be.
 """
+import re
 
 
 class DWG:

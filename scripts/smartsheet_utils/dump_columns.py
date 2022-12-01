@@ -1,12 +1,13 @@
-# smartsheet_dump_columns.py
-import json
-import os
-import smartsheet
+# scripts/smartsheet_utils/smartsheet_dump_columns.py
 """
 author: Sage Gendron
 Takes a Smartsheet sheet ID and an API key and dumps the column IDs (which are not available via Smartsheet's web UI)
 into a .json file to be accessed for updating Smartsheet with information from the automated Excel estimating process.
 """
+import json
+import os
+import smartsheet
+
 # Smartsheet API key to connect to server
 sg_api_key: str = '###'
 

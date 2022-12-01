@@ -1,13 +1,13 @@
-# list_dwgs.py
-import pandas as pd
-import xlwings as xw
-import os
+# scripts/utils/list_dwgs.py
 """
 author: Sage Gendron
 Read all .pdf files in a directory to an excel file by hierarchically column.
-Copies data into an excel file and the quote generation template file to be referenced in drop down menus for automated 
+Copies data into an excel file and the quote generation template file to be referenced in drop down menus for automated
 estimating.
 """
+import pandas as pd
+import xlwings as xw
+import os
 
 # IMMUTABLE GLOBAL VARIABLES USED FOR EASE IN UPDATING; THIS IS NOT BEST PRACTICE
 # area to copy from list_dwgs to quote generation template file
