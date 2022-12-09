@@ -11,7 +11,38 @@ Due to the use of xlwings, extensive interaction with Excel spreadsheets was req
 functions end with an xlwings API call.
 
 ### Structure
-
+The structure of the project is shown below where the 5 primary python files that are called via xlwings are in the
+parent scripts directory and all of their helper modules are contained in similarly named folders.
+```
+📂 scripts
+┣ 📝 customer_files.py
+┣ 📝 product_quote.py
+┣ 📝 product_submittal.py
+┣ 📝 sales_order.py
+┣ 📝 smartsheet_update.py
+┣ 📂 quote
+┃ ┣ components.py
+┃ ┣ connections.py
+┃ ┣ controls.py
+┃ ┣ descriptions.py
+┃ ┣ f_component.py
+┃ ┣ io.py
+┃ ┣ kit_sizes.py
+┃ ┗ kit_types.py
+┣ 📂 salesorder
+┃ ┣ assign.py
+┃ ┗ extract.py
+┣ 📂 smartsheet_utils
+┃ ┣ create_objects.py
+┃ ┣ dump_columns.py
+┃ ┗ upload.py
+┣ 📂 submittal
+┃ ┣ DWG.py
+┃ ┗ spec.py
+┣ 📂 utils
+┃ ┣ list_dwgs.py
+┃ ┗ rename.py
+```
 
 ### Disclaimer
 These scripts have been simplified and re-coded to showcase coding structure and methodology. Any references to 
@@ -20,7 +51,7 @@ products or internal processes have been removed to protect the identity of the 
 ### Description
 The estimation cycle effectively uses a combination of three documents: a schedule containing engineering information, a 
 quote indicating pricing to the customer, and a combined submittal package containing product-specific information. The
-second and third documents are based on the information contained in the engineered schedule.
+second and third documents are based on the manually-entered information contained in the engineered schedule.
 
 The automation of these three documents required constructing what was effectively several ETL processes between Excel
 documents and other Excel documents, Smartsheet, and our enterprise SQL databases. Data is entered by hand into the
